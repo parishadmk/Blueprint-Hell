@@ -3,6 +3,7 @@ package com.yourname.blueprinthell.view;
 import javax.swing.*;
 import java.awt.*;
 
+
 public class ShopPanel extends JPanel {
     public ShopPanel(CardLayout cardLayout, JPanel parentPanel) {
         setLayout(new BorderLayout());
@@ -33,5 +34,17 @@ public class ShopPanel extends JPanel {
         JButton backButton = new JButton("Back to Game");
         backButton.addActionListener(e -> cardLayout.show(parentPanel, "game"));
         add(backButton, BorderLayout.SOUTH);
+
+        // Add to your itemsPanel:
+        JButton aergiaButton = new JButton("Scroll of Aergia (10 Coins): Freeze packets");
+        JButton sisyphusButton = new JButton("Scroll of Sisyphus (15 Coins): Move systems");
+
+        aergiaButton.addActionListener(e -> {
+            // Implement freeze logic
+            gameState.applyAergiaEffect(); // You'll need to add this method
+        });
+
+        itemsPanel.add(aergiaButton);
+        itemsPanel.add(sisyphusButton);
     }
 }

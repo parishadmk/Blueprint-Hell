@@ -42,17 +42,15 @@ public class SystemNode {
     public List<Point> getOutputPorts() {
         return outputPorts;
     }
-
-    public boolean canStorePacket() {
+        public boolean canStorePacket(Packet packet) {
         return buffer.size() < bufferCapacity;
     }
 
     public void storePacket(Packet packet) {
-        if (canStorePacket()) {
+        if (canStorePacket(packet)) {
             buffer.add(packet);
         }
     }
-
     public Packet releasePacket() {
         return buffer.poll();
     }

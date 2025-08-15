@@ -1,0 +1,15 @@
+<configuration>
+    <!-- This creates a "File Appender" which directs logs to a file -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logs/game.log</file> <!-- The log file will be created here -->
+        <encoder>
+            <!-- This pattern defines the format of each log message -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- This sets the global logging level to DEBUG -->
+    <root level="DEBUG">
+        <appender-ref ref="FILE" />
+    </root>
+</configuration>

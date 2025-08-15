@@ -2,32 +2,31 @@ package com.yourname.blueprinthell.controller;
 
 import com.yourname.blueprinthell.model.GameState;
 import com.yourname.blueprinthell.model.Packet;
+import com.yourname.blueprinthell.model.Packet.Shape;
 import com.yourname.blueprinthell.model.SystemNode;
 import com.yourname.blueprinthell.model.Wire;
 import java.awt.Point;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import javax.swing.JPanel;
 import javax.swing.Timer;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+
+
 
 public class GameController {
 
     private GameState gameState;
-    private JPanel gamePanel; // The view
-    private Timer gameTimer;
+    private JPanel gamePanel;
+    // private Timer gameTimer; // Removed unused field
 
-    // Wiring state
     private boolean isWiring = false;
     private Point wireStartPoint = null;
     private SystemNode wireStartNode = null;
     private Point currentMousePos = null;
 
-    public GameController(GameState gameState, JPanel gamePanel, Timer timer) {
+    public GameController(GameState gameState, JPanel gamePanel) {
         this.gameState = gameState;
         this.gamePanel = gamePanel;
-        this.gameTimer = timer;
         addListeners();
     }
 
@@ -88,15 +87,21 @@ public class GameController {
                         Wire newWire = new Wire(wireStartPoint, portPos);
                         
                         if (gameState.addWire(newWire, destNode)) {
-                            double length = newWire.getLength();
+                            // --- UPDATED: Logic is the same, but now it uses the path ---
+                            Point start = newWire.getPath().get(0);
+                            Point end = newWire.getPath().get(1);
+                            double length = start.distance(end);
                             int speed = 2;
                             Point velocity = new Point(
-                                    (int) ((portPos.x - wireStartPoint.x) * speed / length),
-                                    (int) ((portPos.y - wireStartPoint.y) * speed / length)
+                                    (int) ((end.x - start.x) * speed / length),
+                                    (int) ((end.y - start.y) * speed / length)
                             );
-                            Packet newPacket = new Packet(Packet.Shape.SQUARE, new Point(wireStartPoint), velocity, 10);
+                            Packet newPacket = new Packet(Packet.Shape.SQUARE, new Point(start), velocity, 10, Packet.Type.MESSENGER);
+                            // In GameController or where packets are created:
+                            new Packet(Shape.SQUARE, position, velocity, 10, Packet.Type.BULKY);        
                             newWire.placePacket(newPacket); // Associate packet with wire
                             gameState.addPacket(newPacket);
+
                         }
                         break;
                     }
@@ -109,7 +114,6 @@ public class GameController {
         }
     }
 
-    // Getters for the view to use
     public boolean isWiring() { return isWiring; }
     public Point getWireStartPoint() { return wireStartPoint; }
     public Point getCurrentMousePos() { return currentMousePos; }

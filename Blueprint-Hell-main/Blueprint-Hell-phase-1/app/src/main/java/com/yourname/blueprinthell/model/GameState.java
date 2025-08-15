@@ -22,9 +22,14 @@ public class GameState {
     private int coins = 0;
     private double remainingWireLength = 500.0;
 
+    // Phase 2 physics constants
+    private static final double BULKY_DECELERATION = -0.1;
+    private static final double LONG_WIRE_ACCELERATION = 0.05;
+    private static final double SECRET_PACKET_SPEED_FACTOR = 0.8;
+    private static final int LONG_WIRE_THRESHOLD = 300;
+
     public GameState() { }
-    
-    // --- The missing pause/resume methods ---
+
     public void pauseGame() {
         if (currentStatus == GameStatus.RUNNING) {
             currentStatus = GameStatus.PAUSED;
@@ -48,15 +53,27 @@ public class GameState {
     }
 
     public void addPacket(Packet p) {
+        initializePacketPhysics(p);
         packets.add(p);
-        // Only count packets spawned by the player, not re-routed ones
-        if (p.getVelocity().distance(0, 0) != 0) { // A rough check
-             totalPacketsSpawned++;
+        if (p.getVelocity().distance(0, 0) != 0) {
+            totalPacketsSpawned++;
         }
     }
 
     public void addSystem(SystemNode s) {
         systems.add(s);
+    }
+
+    private void initializePacketPhysics(Packet p) {
+        if (p.getType() == Packet.Type.BULKY) {
+            p.setAcceleration(BULKY_DECELERATION);
+        } else if (p.getType() == Packet.Type.SECRET) {
+            Point vel = p.getVelocity();
+            p.setVelocity(new Point(
+                (int)(vel.x * SECRET_PACKET_SPEED_FACTOR),
+                (int)(vel.y * SECRET_PACKET_SPEED_FACTOR)
+            ));
+        }
     }
 
     public GameStatus getCurrentStatus() { return currentStatus; }
@@ -78,16 +95,16 @@ public class GameState {
             return;
         }
         if (packets.isEmpty() && remainingWireLength < 1) {
-             boolean allBuffersEmpty = true;
-             for(SystemNode node : systems) {
-                 if(node.getBufferSize() > 0) {
-                     allBuffersEmpty = false;
-                     break;
-                 }
-             }
-             if(allBuffersEmpty) {
-                 currentStatus = GameStatus.GAME_OVER;
-             }
+            boolean allBuffersEmpty = true;
+            for(SystemNode node : systems) {
+                if(node.getBufferSize() > 0) {
+                    allBuffersEmpty = false;
+                    break;
+                }
+            }
+            if(allBuffersEmpty) {
+                currentStatus = GameStatus.GAME_OVER;
+            }
         }
     }
 
@@ -96,7 +113,7 @@ public class GameState {
             return;
         }
 
-        // Collision detection (no changes)
+        // Collision detection
         List<Packet> currentPackets = new ArrayList<>(packets);
         for (int i = 0; i < currentPackets.size(); i++) {
             for (int j = i + 1; j < currentPackets.size(); j++) {
@@ -109,81 +126,162 @@ public class GameState {
             }
         }
 
-        // Packet movement and arrival
+        // Packet movement and physics
         Iterator<Packet> it = packets.iterator();
         while (it.hasNext()) {
             Packet p = it.next();
-            p.move();
-
+            Wire currentWire = getWireForPacket(p);
+            
+            // Apply acceleration rules
+            if (currentWire != null) {
+                if (p.getType() != Packet.Type.BULKY && currentWire.getLength() > LONG_WIRE_THRESHOLD) {
+                    p.setAcceleration(LONG_WIRE_ACCELERATION);
+                }
+            }
+            
+            // Physics update
+            p.move(currentWire);
+            
+            // Handle lost packets
             if (p.isLost()) {
                 packetLoss++;
                 it.remove();
                 continue;
             }
 
-            for (Wire w : wires) {
-                // Check if the packet is on this wire and has arrived
-                if (w.getOccupyingPacket() == p && p.getPosition().distance(w.getEnd()) < p.getSize()) {
-                    SystemNode dest = wireDestinations.get(w);
-                    if (dest != null && dest.canStorePacket()) {
-                        dest.storePacket(p);
-                        coins += 1;
-                        packetsDelivered++;
-                    } else {
-                        packetLoss++;
-                    }
-                    w.clearPacket(); // Free up the wire
-                    it.remove();
-                    break; 
-                }
+
+            // Destination handling
+            if (currentWire != null) {
+                handlePacketDestination(p, currentWire, it);
             }
         }
         
-        // --- NEW: Re-routing logic ---
-        // Check each system to see if it can release a packet
-        for (SystemNode node : systems) {
-            if (node.getBufferSize() > 0) {
-                // Find an empty output wire connected to this system
-                for (Wire wire : wires) {
-                    if (!wire.isOccupied()) {
-                        boolean wireBelongsToNode = false;
-                        for (Point portPos : node.getOutputPorts()) {
-                            if (wire.getStart().equals(portPos)) {
-                                wireBelongsToNode = true;
-                                break;
-                            }
-                        }
-
-                        if (wireBelongsToNode) {
-                            // Found an empty output wire. Release a packet.
-                            Packet packetToRelease = node.releasePacket();
-                            if (packetToRelease != null) {
-                                // Reset its position to the start of the new wire
-                                packetToRelease.setPosition(new Point(wire.getStart()));
-
-                                // Calculate new velocity along the wire
-                                double length = wire.getLength();
-                                int speed = 2;
-                                Point velocity = new Point(
-                                        (int) ((wire.getEnd().x - wire.getStart().x) * speed / length),
-                                        (int) ((wire.getEnd().y - wire.getStart().y) * speed / length)
-                                );
-                                packetToRelease.setVelocity(velocity);
-
-                                // Add it back to the list of moving packets
-                                packets.add(packetToRelease);
-                                // Mark the wire as occupied by this packet
-                                wire.placePacket(packetToRelease);
-                                
-                                // Packet has been re-routed, move to the next system
-                                break; 
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // System processing
+        processSystems();
         
         checkEndConditions();
+    }
+
+    private Wire getWireForPacket(Packet p) {
+        for (Wire w : wires) {
+            if (w.getOccupyingPacket() == p) {
+                return w;
+            }
+        }
+        return null;
+    }
+
+    private void handlePacketDestination(Packet p, Wire wire, Iterator<Packet> it) {
+        Point wireEnd = wire.getPath().get(wire.getPath().size() - 1);
+        if (p.getPosition().distance(wireEnd) < p.getSize()) {
+            SystemNode dest = wireDestinations.get(wire);
+            if (dest != null && dest.canStorePacket(p)) {
+                dest.storePacket(p);
+                coins += getDeliveryReward(p);
+                packetsDelivered++;
+            } else {
+                packetLoss++;
+            }
+            wire.clearPacket();
+            it.remove();
+        }
+    }
+
+    private int getDeliveryReward(Packet p) {
+        return switch (p.getType()) {
+            case SECRET -> 3;
+            case BULKY -> 2;
+            default -> 1;
+        };
+    }
+
+    private void processSystems() {
+        for (SystemNode node : systems) {
+            if (node.getBufferSize() > 0) {
+                for (Wire wire : wires) {
+                    if (!wire.isOccupied() && isWireConnectedToNode(wire, node)) {
+                        releasePacketFromSystem(node, wire);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isWireConnectedToNode(Wire wire, SystemNode node) {
+        Point wireStart = wire.getPath().get(0);
+        return node.getOutputPorts().stream()
+                .anyMatch(portPos -> portPos.equals(wireStart));
+    }
+
+    private void releasePacketFromSystem(SystemNode node, Wire wire) {
+        Packet packetToRelease = node.releasePacket();
+        if (packetToRelease != null) {
+            Point wireStart = wire.getPath().get(0);
+            packetToRelease.setPosition(new Point(wireStart));
+            Point start = wire.getPath().get(0);
+            Point end = wire.getPath().get(1);
+            
+            packetToRelease.setPosition(new Point(start));
+            initializePacketVelocity(packetToRelease, start, end);
+            initializePacketPhysics(packetToRelease);
+            
+            if (wire.getLength() > LONG_WIRE_THRESHOLD) {
+                packetToRelease.setAcceleration(LONG_WIRE_ACCELERATION);
+            }
+            
+            packets.add(packetToRelease);
+            wire.placePacket(packetToRelease);
+        }
+    }
+
+    private void initializePacketVelocity(Packet p, Point start, Point end) {
+        double length = start.distance(end);
+        int baseSpeed = (p.getType() == Packet.Type.BULKY) ? 1 : 2;
+        p.setVelocity(new Point(
+            (int)((end.x - start.x) * baseSpeed / length),
+            (int)((end.y - start.y) * baseSpeed / length)
+        ));
+    }
+
+
+    private Wire findWireForPacket(Packet p) {
+    for (Wire w : wires) {
+        if (w.getOccupyingPacket() == p) {
+            return w;
+        }
+    }
+    return null;
+}
+
+    public void applyAergiaEffect() {
+    if (coins >= 10) {
+        coins -= 10;
+        for (Packet p : packets) {
+            p.setAcceleration(0);
+            p.setVelocity(new Point(0,0));
+        }
+    }
+}
+
+    public void applyLongWireEffect() {
+        if (coins >= 5) {
+            coins -= 5;
+            remainingWireLength += 100; // Increase wire length by 100
+        }
+    }
+
+    public void applySecretPacketEffect() {
+        if (coins >= 15) {
+            coins -= 15;
+            for (Packet p : packets) {
+                if (p.getType() == Packet.Type.SECRET) {
+                    p.setVelocity(new Point(
+                        (int)(p.getVelocity().x * SECRET_PACKET_SPEED_FACTOR),
+                        (int)(p.getVelocity().y * SECRET_PACKET_SPEED_FACTOR)
+                    ));
+                }
+            }
+        }
     }
 }
