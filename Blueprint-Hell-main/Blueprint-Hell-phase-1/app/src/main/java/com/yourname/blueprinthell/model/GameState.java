@@ -1,13 +1,15 @@
 package com.yourname.blueprinthell.model;
 
 import java.awt.Point;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class GameState {
+public class GameState implements Serializable {
+    private static final long serialVersionUID = 1L;
     public enum GameStatus { RUNNING, PAUSED, GAME_OVER, WIN }
     private GameStatus currentStatus = GameStatus.RUNNING;
 

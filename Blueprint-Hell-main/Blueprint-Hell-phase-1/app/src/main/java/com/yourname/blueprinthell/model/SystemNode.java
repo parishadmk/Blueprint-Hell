@@ -1,12 +1,14 @@
 package com.yourname.blueprinthell.model;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-public class SystemNode {
+public class SystemNode implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Point location;
     private Queue<Packet> buffer;
     private int bufferCapacity = 5;

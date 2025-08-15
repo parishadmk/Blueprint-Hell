@@ -1,8 +1,10 @@
 package com.yourname.blueprinthell.model;
 
 import java.awt.*;
+import java.io.Serializable;
 
-public class Packet {
+public class Packet implements Serializable {
+    private static final long serialVersionUID = 1L;
     public enum Shape { SQUARE, TRIANGLE }
 
     private Shape shape;

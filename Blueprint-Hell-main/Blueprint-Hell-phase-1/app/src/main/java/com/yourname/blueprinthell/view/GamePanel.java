@@ -2,9 +2,11 @@ package com.yourname.blueprinthell.view;
 
 import com.yourname.blueprinthell.controller.GameController; // NEW Import
 import com.yourname.blueprinthell.model.*;
+import com.yourname.blueprinthell.util.SaveManager;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.IOException;
 
 public class GamePanel extends JPanel implements ActionListener {
     private GameState gameState;
@@ -32,12 +34,36 @@ public class GamePanel extends JPanel implements ActionListener {
         resetGame(); // Initialize game state and controller
 
         setupUIButtons();
-        
+
         addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
                 if (gameState.getCurrentStatus() != GameState.GameStatus.GAME_OVER && gameState.getCurrentStatus() != GameState.GameStatus.WIN) {
                     timer.start();
+                }
+            }
+        });
+
+        // Key bindings for saving and loading the game
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_S) {
+                    try {
+                        SaveManager.save(gameState, "save.dat");
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_L) {
+                    try {
+                        GameState loaded = SaveManager.load("save.dat");
+                        if (loaded != null) {
+                            gameState = loaded;
+                            gameController = new GameController(gameState, GamePanel.this, timer);
+                        }
+                    } catch (IOException | ClassNotFoundException ex) {
+                        ex.printStackTrace();
+                    }
                 }
             }
         });

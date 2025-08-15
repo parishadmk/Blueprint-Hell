@@ -1,8 +1,10 @@
 package com.yourname.blueprinthell.model;
 
 import java.awt.*;
+import java.io.Serializable;
 
-public class Wire {
+public class Wire implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Point start;
     private Point end;
     private Packet occupyingPacket; // null if wire is free
