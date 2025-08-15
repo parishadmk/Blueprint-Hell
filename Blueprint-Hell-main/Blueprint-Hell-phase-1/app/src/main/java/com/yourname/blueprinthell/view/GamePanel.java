@@ -5,6 +5,8 @@ import com.yourname.blueprinthell.model.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GamePanel extends JPanel implements ActionListener {
     private GameState gameState;
@@ -19,6 +21,13 @@ public class GamePanel extends JPanel implements ActionListener {
     private JButton menuButton;
     private JButton pauseButton;
     private JButton shopButton;
+    private JButton saveButton;
+    private JButton loadButton;
+    private JButton mainMenuButton;
+
+    // --- NEW: Save state tracking ---
+    private GameState savedGameState;
+    private String saveState = "Unsaved";
 
     public GamePanel(CardLayout cardLayout, JPanel mainPanel) {
         this.cardLayout = cardLayout;
@@ -45,11 +54,11 @@ public class GamePanel extends JPanel implements ActionListener {
     
     public final void resetGame() {
         this.gameState = new GameState();
-        // --- NEW: Add systems for a fresh game ---
-        gameState.addSystem(new SystemNode(new Point(100, 150)));
-        gameState.addSystem(new SystemNode(new Point(400, 150)));
-        gameState.addSystem(new SystemNode(new Point(100, 400)));
-        gameState.addSystem(new SystemNode(new Point(400, 400)));
+        // --- NEW: Add systems for a fresh game with types ---
+        gameState.addSystem(new SystemNode(new Point(100, 150), "Source"));
+        gameState.addSystem(new SystemNode(new Point(400, 150), "Processor"));
+        gameState.addSystem(new SystemNode(new Point(100, 400), "Router"));
+        gameState.addSystem(new SystemNode(new Point(400, 400), "Sink"));
         
         // --- NEW: Create the controller ---
         this.gameController = new GameController(this.gameState, this, this.timer);
@@ -58,9 +67,15 @@ public class GamePanel extends JPanel implements ActionListener {
             timer.start();
         }
         
-        if(shopButton != null) { // Null check for first-time setup
+        saveState = "Unsaved";
+        savedGameState = null;
+
+        if (shopButton != null) { // Null check for first-time setup
             shopButton.setVisible(true);
             pauseButton.setVisible(true);
+            saveButton.setVisible(true);
+            mainMenuButton.setVisible(true);
+            loadButton.setVisible(false);
             resumeButton.setVisible(false);
             menuButton.setVisible(false);
         }
@@ -70,14 +85,29 @@ public class GamePanel extends JPanel implements ActionListener {
 
     private void setupUIButtons() {
         pauseButton = new JButton("Pause");
-        pauseButton.setBounds(880, 20, 100, 30); 
+        pauseButton.setBounds(880, 20, 100, 30);
         pauseButton.addActionListener(e -> togglePause());
         add(pauseButton);
-        
+
         shopButton = new JButton("Shop");
         shopButton.setBounds(770, 20, 100, 30);
         shopButton.addActionListener(e -> pauseAndGoTo("shop"));
         add(shopButton);
+
+        mainMenuButton = new JButton("Menu");
+        mainMenuButton.setBounds(660, 20, 100, 30);
+        mainMenuButton.addActionListener(e -> pauseAndGoTo("menu"));
+        add(mainMenuButton);
+
+        saveButton = new JButton("Save");
+        saveButton.setBounds(550, 20, 100, 30);
+        saveButton.addActionListener(e -> quickSave());
+        add(saveButton);
+
+        loadButton = new JButton("Load");
+        loadButton.setBounds(440, 20, 100, 30);
+        loadButton.addActionListener(e -> quickLoad());
+        add(loadButton);
 
         resumeButton = new JButton("Resume");
         menuButton = new JButton("Main Menu");
@@ -90,6 +120,7 @@ public class GamePanel extends JPanel implements ActionListener {
 
         resumeButton.setVisible(false);
         menuButton.setVisible(false);
+        loadButton.setVisible(false);
     }
     
     private void togglePause() {
@@ -100,6 +131,9 @@ public class GamePanel extends JPanel implements ActionListener {
             menuButton.setVisible(true);
             pauseButton.setVisible(false);
             shopButton.setVisible(false);
+            saveButton.setVisible(false);
+            loadButton.setVisible(false);
+            mainMenuButton.setVisible(false);
         } else if (gameState.getCurrentStatus() == GameState.GameStatus.PAUSED) {
             gameState.resumeGame();
             timer.start();
@@ -107,6 +141,9 @@ public class GamePanel extends JPanel implements ActionListener {
             menuButton.setVisible(false);
             pauseButton.setVisible(true);
             shopButton.setVisible(true);
+            saveButton.setVisible(true);
+            loadButton.setVisible(savedGameState != null);
+            mainMenuButton.setVisible(true);
         }
         repaint();
     }
@@ -140,6 +177,50 @@ public class GamePanel extends JPanel implements ActionListener {
         g2.drawString(lossInfo, 20, 50);
         g2.drawString(coinsInfo, 20, 70);
         g2.drawString(deliveredInfo, 20, 90);
+
+        // --- NEW: Packet category counts ---
+        int squareCount = 0;
+        int triangleCount = 0;
+        for (Packet p : gameState.getPackets()) {
+            if (p.getShape() == Packet.Shape.SQUARE) squareCount++;
+            if (p.getShape() == Packet.Shape.TRIANGLE) triangleCount++;
+        }
+        g2.drawString("Squares: " + squareCount + " Triangles: " + triangleCount, 20, 110);
+
+        // --- NEW: Save state information ---
+        g2.drawString("Save: " + saveState, 20, 130);
+
+        // --- NEW: Active node types ---
+        Map<String, Integer> nodeCounts = new HashMap<>();
+        for (SystemNode s : gameState.getSystems()) {
+            nodeCounts.merge(s.getType(), 1, Integer::sum);
+        }
+        int y = 150;
+        for (Map.Entry<String, Integer> entry : nodeCounts.entrySet()) {
+            g2.drawString(entry.getKey() + ": " + entry.getValue(), 20, y);
+            y += 20;
+        }
+    }
+
+    // --- NEW: Quick save/load helpers ---
+    private void quickSave() {
+        savedGameState = gameState.copy();
+        saveState = "Saved";
+        loadButton.setVisible(true);
+        repaint();
+    }
+
+    private void quickLoad() {
+        if (savedGameState != null) {
+            gameState = savedGameState.copy();
+            gameController = new GameController(gameState, this, timer);
+            saveState = "Loaded";
+            repaint();
+        }
+    }
+
+    public GameState getGameState() {
+        return gameState;
     }
 
     private void drawGameOver(Graphics2D g2) {

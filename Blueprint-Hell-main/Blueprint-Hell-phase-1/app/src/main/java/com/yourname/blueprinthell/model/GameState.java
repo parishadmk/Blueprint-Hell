@@ -23,6 +23,55 @@ public class GameState {
     private double remainingWireLength = 500.0;
 
     public GameState() { }
+
+    // --- NEW: Copy constructor and copy method for quick save/load ---
+    public GameState(GameState other) {
+        this.currentStatus = other.currentStatus;
+        this.packetLoss = other.packetLoss;
+        this.packetsDelivered = other.packetsDelivered;
+        this.totalPacketsSpawned = other.totalPacketsSpawned;
+        this.coins = other.coins;
+        this.remainingWireLength = other.remainingWireLength;
+
+        // Deep copy packets
+        this.packets = new ArrayList<>();
+        for (Packet p : other.packets) {
+            Packet np = new Packet(p.getShape(), new Point(p.getPosition()), new Point(p.getVelocity()), p.getSize());
+            np.addNoise(p.getNoise());
+            this.packets.add(np);
+        }
+
+        // Deep copy systems
+        this.systems = new ArrayList<>();
+        for (SystemNode s : other.systems) {
+            this.systems.add(new SystemNode(s));
+        }
+
+        // Deep copy wires and destinations
+        this.wires = new ArrayList<>();
+        this.wireDestinations = new HashMap<>();
+        for (int i = 0; i < other.wires.size(); i++) {
+            Wire ow = other.wires.get(i);
+            Wire nw = new Wire(new Point(ow.getStart()), new Point(ow.getEnd()));
+            this.wires.add(nw);
+        }
+        for (int i = 0; i < other.wires.size(); i++) {
+            Wire ow = other.wires.get(i);
+            SystemNode odest = other.wireDestinations.get(ow);
+            if (odest != null) {
+                int index = other.systems.indexOf(odest);
+                if (index >= 0 && index < this.systems.size()) {
+                    Wire nw = this.wires.get(i);
+                    SystemNode ndest = this.systems.get(index);
+                    this.wireDestinations.put(nw, ndest);
+                }
+            }
+        }
+    }
+
+    public GameState copy() {
+        return new GameState(this);
+    }
     
     // --- The missing pause/resume methods ---
     public void pauseGame() {

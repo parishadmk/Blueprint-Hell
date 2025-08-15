@@ -18,9 +18,9 @@ public class App {
             JPanel mainPanel = new JPanel(cardLayout);
 
             // Create all game views
-            MainMenuPanel menu = new MainMenuPanel(cardLayout, mainPanel);
             GamePanel game = new GamePanel(cardLayout, mainPanel); // --- UPDATED: Pass layout to GamePanel ---
-            ShopPanel shop = new ShopPanel(cardLayout, mainPanel);   // --- NEW: Create ShopPanel ---
+            MainMenuPanel menu = new MainMenuPanel(cardLayout, mainPanel, game);
+            ShopPanel shop = new ShopPanel(cardLayout, mainPanel, game);   // --- NEW: Create ShopPanel ---
 
             // Add all panels to the layout
             mainPanel.add(menu, "menu");
